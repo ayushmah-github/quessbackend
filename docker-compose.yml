@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: hrms-postgres
+    environment:
+      POSTGRES_USER: hrms_user
+      POSTGRES_PASSWORD: hrms_password
+      POSTGRES_DB: hrmsdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - hrms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hrms_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # HRMS Backend (depends on PostgreSQL)
+  hrms-backend:
+    build: .
+    container_name: hrms-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+      - DATABASE_URL=postgresql://hrms_user:hrms_password@postgres:5432/hrmsdb
+      - ENVIRONMENT=production
+    volumes:
+      - ./:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python -m uvicorn HrmsBackend.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - hrms-network
+
+volumes:
+  postgres_data:
+
+networks:
+  hrms-network:
+    driver: bridge
